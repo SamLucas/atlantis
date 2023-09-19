@@ -1,0 +1,25 @@
+logs:
+  general:
+    level: DEBUG
+    
+ingressClass:
+  enabled: true
+  isDefaultClass: true
+
+providers:
+  kubernetesCRD:
+    enabled: true
+
+ports:
+  websecure:
+    port: 8443
+    expose: true
+    exposedPort: 443
+    protocol: TCP
+    tls:
+      enabled: true
+  gitlab-shell:
+    port: 22
+    expose: true
+    exposedPort: 22
+    protocol: TCP

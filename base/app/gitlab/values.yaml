@@ -1,0 +1,65 @@
+global:
+  edition: ce
+  # time_zone: "America/Sao_Paulo"
+  ingress:
+    configureCertmanager: false
+    class: traefik
+    provider: traefik
+    annotations:
+      kubernetes.io/tls-acme: false
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      kubernetes.io/ingress.allow-http: false
+    tls: 
+      enabled: false
+  hosts:
+    domain: ${HOST_GITLAB}
+    https: false
+  shell:
+    port: 22
+  runner:
+    registrationToken:
+      secret: gitlab-runner-secret
+  minio:
+    credentials:
+      secret: gitlab-minio-access-secret
+  kas:
+    enabled: false
+  pages:
+    enabled: false
+    # accessControl: true
+    # host: pages...
+# End Global
+certmanager:
+  install: false
+nginx-ingress:  
+  enabled: false
+prometheus:
+  install: false
+gitlab-runner:
+  install: false
+gitlab:
+  # migrations:
+  #   enabled: false
+  webservice:
+    ingress:
+      tls:
+        secretName: gitlab-webservice-tls
+    minReplicas: 1
+    maxReplicas: 1
+  sidekiq:
+    minReplicas: 1
+    maxReplicas: 1
+  gitlab-shell:
+    minReplicas: 1
+    maxReplicas: 1
+registry:
+  ingress:
+    tls:
+      secretName: gitlab-registry-tls
+  hpa:
+    minReplicas: 1
+    maxReplicas: 1
+minio:
+  ingress:
+    tls: 
+      secretName: gitlab-minio-tls

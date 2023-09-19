@@ -1,0 +1,15 @@
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRouteTCP
+metadata:
+  name: ingress-route-tcp-gitlab-shell
+  namespace: ${NAMESPACE}
+spec:
+  entryPoints:
+    - gitlab-shell
+  routes:
+    - match: HostSNI(`*`)
+      kind: Rule
+      services:
+        - name: gitlab-app-gitlab-shell
+          port: 22
+

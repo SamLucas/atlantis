@@ -1,0 +1,43 @@
+logLevel: "debug"
+
+orgAllowlist: ${HOST_NAME_GITLAB_ALLOW_LIST} 
+
+gitlab:
+  user: ${USERNAME}
+  token: ${TOKEN}
+  secret: ${SECRET}
+  hostname: ${HOST_NAME_GITLAB}
+
+repoConfig: |
+  ---
+  repos:
+  - id: /.*/
+    allowed_overrides: [apply_requirements]
+
+config: |
+  automerge: true
+
+allowForkPRs: true
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  annotations:
+    certmanager.k8s.io/cluster-issuer: letsencrypt-prod
+    kubernetes.io/ingress.class: traefik    
+  path: /
+  host: ${HOST_NAME}
+
+dataStorage: 5Gi
+
+resources:
+  requests:
+    memory: 1Gi
+    cpu: 300m
+  limits:
+    memory: 1Gi
+    cpu: 500m

@@ -1,0 +1,20 @@
+gitlabUrl: ${GITLAB_URL}
+
+runners:
+  cache:
+    secretName: gitlab-minio-access-secret
+  
+  secret: gitlab-runner-secret
+
+  config: |
+    [[runners]]
+      [runners.cache]
+        Type = "s3"
+        Path = "runner/cache"
+        Shared = true
+        [runners.cache.s3]
+          ServerAddress = "${SERVER_ADDRESS}"
+          BucketName = "runner-cache"
+
+rbac:
+  create: true
