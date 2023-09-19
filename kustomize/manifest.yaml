@@ -1,0 +1,282 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: atlantis
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app: atlantis
+    chart: atlantis-4.14.0
+    helm.sh/chart: atlantis-4.14.0
+    heritage: Helm
+    release: atlantis
+  name: atlantis
+  namespace: atlantis
+---
+apiVersion: v1
+data:
+  atlantis.yaml: |
+    automerge: true
+kind: ConfigMap
+metadata:
+  labels:
+    app: atlantis
+    chart: atlantis-4.14.0
+    helm.sh/chart: atlantis-4.14.0
+    heritage: Helm
+    release: atlantis
+  name: atlantis
+  namespace: atlantis
+---
+apiVersion: v1
+data:
+  repos.yaml: |
+    ---
+    repos:
+    - id: /.*/
+      allowed_overrides: [apply_requirements]
+kind: ConfigMap
+metadata:
+  labels:
+    app: atlantis
+    chart: atlantis-4.14.0
+    helm.sh/chart: atlantis-4.14.0
+    heritage: Helm
+    release: atlantis
+  name: atlantis-repo-config
+  namespace: atlantis
+---
+apiVersion: v1
+data:
+  tests.bats: |-
+    setup() {
+      apk add curl -q
+    }
+    @test "Atlantis UI is available" {
+      ATLANTIS_URL=http://atlantis.atlantis.svc.cluster.local:80
+      echo "Trying Atlantis at: $ATLANTIS_URL"
+      curl -v $ATLANTIS_URL
+    }
+kind: ConfigMap
+metadata:
+  name: atlantis-tests
+  namespace: atlantis
+---
+apiVersion: v1
+data:
+  gitlab_secret: YTkyOGQ2YzI=
+  gitlab_token: Z2xwYXQtZHhyUzJTeTcxMkpFM3lndTNwVWg=
+kind: Secret
+metadata:
+  labels:
+    app: atlantis
+    chart: atlantis-4.14.0
+    helm.sh/chart: atlantis-4.14.0
+    heritage: Helm
+    release: atlantis
+  name: atlantis-webhook
+  namespace: atlantis
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: atlantis
+    chart: atlantis-4.14.0
+    helm.sh/chart: atlantis-4.14.0
+    heritage: Helm
+    release: atlantis
+  name: atlantis
+  namespace: atlantis
+spec:
+  ports:
+  - name: atlantis
+    port: 80
+    protocol: TCP
+    targetPort: 4141
+  selector:
+    app: atlantis
+    release: atlantis
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    app: atlantis
+    chart: atlantis-4.14.0
+    helm.sh/chart: atlantis-4.14.0
+    heritage: Helm
+    release: atlantis
+  name: atlantis
+  namespace: atlantis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: atlantis
+      release: atlantis
+  serviceName: atlantis
+  template:
+    metadata:
+      annotations:
+        checksum/config: 5f7ae99a22266b6a951cafa5b8973fa5c9e175a8e9346f8d36b9a3313b3994d4
+        checksum/repo-config: ce5223f51e5effeaa5b5f6d22104e5e551927765c2fd2788a50079f004ff6882
+      labels:
+        app: atlantis
+        release: atlantis
+    spec:
+      automountServiceAccountToken: true
+      containers:
+      - args:
+        - server
+        - --config=/etc/atlantis/atlantis.yaml
+        env:
+        - name: ATLANTIS_ALLOW_FORK_PRS
+          value: "true"
+        - name: ATLANTIS_LOG_LEVEL
+          value: debug
+        - name: ATLANTIS_DATA_DIR
+          value: /atlantis-data
+        - name: ATLANTIS_REPO_ALLOWLIST
+          value: gitlab.local/*
+        - name: ATLANTIS_PORT
+          value: "4141"
+        - name: ATLANTIS_REPO_CONFIG
+          value: /etc/atlantis/repos.yaml
+        - name: ATLANTIS_ATLANTIS_URL
+          value: http://atlantis.kustomize.local
+        - name: ATLANTIS_GITLAB_USER
+          value: atlantis
+        - name: ATLANTIS_GITLAB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: gitlab_token
+              name: atlantis-webhook
+        - name: ATLANTIS_GITLAB_WEBHOOK_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: gitlab_secret
+              name: atlantis-webhook
+        - name: ATLANTIS_GITLAB_HOSTNAME
+          value: http://gitlab.local
+        image: ghcr.io/runatlantis/atlantis:v0.24.4
+        imagePullPolicy: Always
+        livenessProbe:
+          failureThreshold: 5
+          httpGet:
+            path: /healthz
+            port: 4141
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 60
+          successThreshold: 1
+          timeoutSeconds: 5
+        name: atlantis
+        ports:
+        - containerPort: 4141
+          name: atlantis
+        readinessProbe:
+          failureThreshold: 5
+          httpGet:
+            path: /healthz
+            port: 4141
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 60
+          successThreshold: 1
+          timeoutSeconds: 5
+        resources:
+          limits:
+            cpu: 500m
+            memory: 1Gi
+          requests:
+            cpu: 300m
+            memory: 1Gi
+        volumeMounts:
+        - mountPath: /atlantis-data
+          name: atlantis-data
+        - mountPath: /etc/atlantis/repos.yaml
+          name: repo-config
+          readOnly: true
+          subPath: repos.yaml
+        - mountPath: /etc/atlantis/atlantis.yaml
+          name: config
+          readOnly: true
+          subPath: atlantis.yaml
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        runAsUser: 100
+      serviceAccountName: atlantis
+      shareProcessNamespace: false
+      volumes:
+      - configMap:
+          name: atlantis-repo-config
+        name: repo-config
+      - configMap:
+          name: atlantis
+        name: config
+  volumeClaimTemplates:
+  - metadata:
+      name: atlantis-data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 5Gi
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    certmanager.k8s.io/cluster-issuer: letsencrypt-prod
+    kubernetes.io/ingress.class: traefik
+  labels:
+    app: atlantis
+    chart: atlantis-4.14.0
+    helm.sh/chart: atlantis-4.14.0
+    heritage: Helm
+    release: atlantis
+  name: atlantis
+  namespace: atlantis
+spec:
+  ingressClassName: traefik
+  rules:
+  - host: atlantis.kustomize.local
+    http:
+      paths:
+      - backend:
+          service:
+            name: atlantis
+            port:
+              number: 80
+        path: /
+        pathType: ImplementationSpecific
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    helm.sh/hook: test
+  name: atlantis-ui-test
+  namespace: atlantis
+spec:
+  containers:
+  - command:
+    - /usr/local/bin/bats
+    - /tests/
+    image: bats/bats:1.9.0
+    name: atlantis-ui-test
+    volumeMounts:
+    - mountPath: /tests
+      name: tests
+      readOnly: true
+  restartPolicy: Never
+  volumes:
+  - configMap:
+      name: atlantis-tests
+    name: tests
